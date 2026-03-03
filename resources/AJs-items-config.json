@@ -1,0 +1,198 @@
+{
+  "categories": [
+    {
+      "id": 5,
+      "name": "breakfastin'"
+    },
+    {
+      "id": 8,
+      "name": "coffee/tea"
+    },
+    {
+      "id": 3,
+      "name": "dairy"
+    },
+    {
+      "id": 6,
+      "name": "freezin'"
+    },
+    {
+      "id": 7,
+      "name": "sauces/syrups"
+    },
+    {
+      "id": 4,
+      "name": "snackin'"
+    }
+  ],
+  "items": [
+    {
+      "id": 17,
+      "name": "Alternative Milk (Open)",
+      "expire_days": 7,
+      "category_id": 3,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/oatly.png",
+      "category_name": "dairy"
+    },
+    {
+      "id": 7,
+      "name": "bagels",
+      "expire_days": 4,
+      "category_id": 5,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Everything-Bagel-Sandwich.png",
+      "category_name": "breakfastin'"
+    },
+    {
+      "id": 12,
+      "name": "Breakfast Sandwiches",
+      "expire_days": 7,
+      "category_id": 5,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Bacon-Gouda-Tuscan-Roll.png",
+      "category_name": "breakfastin'"
+    },
+    {
+      "id": 22,
+      "name": "chai concentrate",
+      "expire_days": 30,
+      "category_id": 7,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Chai-Tea-Iced.png",
+      "category_name": "sauces/syrups"
+    },
+    {
+      "id": 5,
+      "name": "Cloud Top (Opened)",
+      "expire_days": 7,
+      "category_id": 3,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/ontop.jpg",
+      "category_name": "dairy"
+    },
+    {
+      "id": 3,
+      "name": "Cloud Top (Unopened)",
+      "expire_days": 30,
+      "category_id": 3,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/ontop.jpg",
+      "category_name": "dairy"
+    },
+    {
+      "id": 20,
+      "name": "Cold Brew",
+      "expire_days": 3,
+      "category_id": 8,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/pitcher-removebg-preview.png",
+      "category_name": "coffee/tea"
+    },
+    {
+      "id": 1,
+      "name": "egg bite",
+      "expire_days": 3,
+      "category_id": 4,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/delicious-egg-muffins-removebg-preview.png",
+      "category_name": "snackin'"
+    },
+    {
+      "id": 14,
+      "name": "Freezin' base",
+      "expire_days": 60,
+      "category_id": 6,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/NEUTRALBASE.png",
+      "category_name": "freezin'"
+    },
+    {
+      "id": 2,
+      "name": "Hash Rounds",
+      "expire_days": 1,
+      "category_id": 4,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Hash-Browns-Ketchup.png",
+      "category_name": "snackin'"
+    },
+    {
+      "id": 19,
+      "name": "Iced Coffees",
+      "expire_days": 3,
+      "category_id": 8,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/pitcher-removebg-preview.png",
+      "category_name": "coffee/tea"
+    },
+    {
+      "id": 18,
+      "name": "Iced Teas",
+      "expire_days": 3,
+      "category_id": 8,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/pitcher-removebg-preview.png",
+      "category_name": "coffee/tea"
+    },
+    {
+      "id": 21,
+      "name": "lemonade concentrate",
+      "expire_days": 30,
+      "category_id": 7,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Frozen-Lemonade.png",
+      "category_name": "sauces/syrups"
+    },
+    {
+      "id": 9,
+      "name": "Marshmallow square",
+      "expire_days": 14,
+      "category_id": 4,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Chewy-Marshmellow-Square.png",
+      "category_name": "snackin'"
+    },
+    {
+      "id": 16,
+      "name": "Monin syrups",
+      "expire_days": 30,
+      "category_id": 7,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Monin_Amaretto_Syrup_600x-removebg-preview.png",
+      "category_name": "sauces/syrups"
+    },
+    {
+      "id": 8,
+      "name": "pastry bin",
+      "expire_days": 3,
+      "category_id": 4,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Chocolate-Chip-Muffin.png",
+      "category_name": "snackin'"
+    },
+    {
+      "id": 15,
+      "name": "Sauces",
+      "expire_days": 60,
+      "category_id": 7,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/torani-sauce.png",
+      "category_name": "sauces/syrups"
+    },
+    {
+      "id": 6,
+      "name": "Smoothie bases",
+      "expire_days": 30,
+      "category_id": 6,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Strawberry.png",
+      "category_name": "freezin'"
+    },
+    {
+      "id": 11,
+      "name": "Soft Pretzels",
+      "expire_days": 7,
+      "category_id": 4,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Pretzel-Salted.png",
+      "category_name": "snackin'"
+    },
+    {
+      "id": 10,
+      "name": "Stuffed Pretzels",
+      "expire_days": 7,
+      "category_id": 4,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Pretzel-Stuffed.png",
+      "category_name": "snackin'"
+    },
+    {
+      "id": 13,
+      "name": "WONF",
+      "expire_days": 30,
+      "category_id": 6,
+      "icon_path": "C:/Users/newt_00/PycharmProjects/tagify/resources/Frojoe-2.png",
+      "category_name": "freezin'"
+    }
+  ]
+}
