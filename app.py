@@ -6,6 +6,8 @@ from styles import APP_QSS
 from ui_main import MainTab
 from ui_settings import SettingsTab
 from ui_config import ConfigTab
+from PySide6.QtGui import QIcon
+from resources import resource_path
 
 
 class MainWindow(QMainWindow):
@@ -23,6 +25,8 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.main_tab, "Main")
         self.tabs.addTab(self.settings_tab, "Settings")
         self.tabs.addTab(self.config_tab, "Config")
+
+        self.setWindowIcon(QIcon(resource_path("_internal/icon.ico")))
 
         self.setCentralWidget(self.tabs)
 
@@ -47,3 +51,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+    app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(resource_path("_internal/icon.ico")))
