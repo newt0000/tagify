@@ -21,7 +21,7 @@ The application is built with **Python + PySide6** and integrates directly with 
 ## Download
 
 <p align="center">
-<a href="dist/Tagify/tagify-exec.zip">
+<a href="https://raw.githubusercontent.com/USERNAME/REPOSITORY/main/dist/Tagify/tagify-exec.zip">
 <img src="https://img.shields.io/badge/⬇%20Download%20Executable%20Package-Tagify-blue?style=for-the-badge">
 </a>
 </p>
