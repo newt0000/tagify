@@ -68,7 +68,7 @@
  [],
  False,
  False,
- 1772595475,
+ 1772658109,
  [('runw.exe',
    'C:\\Users\\newt_00\\PycharmProjects\\tagify\\.venv\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\runw.exe',
    'EXECUTABLE')],
