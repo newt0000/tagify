@@ -80,7 +80,7 @@ class MainTab(QWidget):
 
         title = QLabel("🏷️ Prep Sticker Printer")
         title.setObjectName("Title")
-        subtitle = QLabel("Main Screen")
+        subtitle = QLabel("© Newt-Tech 2026")
         subtitle.setObjectName("Muted")
 
         title_box = QVBoxLayout()
