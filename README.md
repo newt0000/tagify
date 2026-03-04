@@ -18,6 +18,15 @@ The system is designed for environments such as:
 The application is built with **Python + PySide6** and integrates directly with Windows printer drivers.
 
 ---
+## Download
+
+<p align="center">
+<a href="dist/Tagify/tagify-exec.zip">
+<img src="https://img.shields.io/badge/⬇%20Download%20Executable%20Package-Tagify-blue?style=for-the-badge">
+</a>
+</p>
+
+---
 
 # Table of Contents
 
