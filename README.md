@@ -555,5 +555,5 @@ Potential enhancements:
 
 # License
 
-Internal kitchen use / custom deployment.\
-Protected under Creative Commons Copyright  &copy; Newt-tech 2026
+Internal kitchen use / custom private deployment.\
+Protected under Creative Commons 0.1 <br/> Copyright &copy; Newt-tech 2026
