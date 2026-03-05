@@ -1,239 +1,124 @@
+# label_print.py
 from __future__ import annotations
 
-import os
-import tempfile
+from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from typing import Optional
-import win32gui
 
-from reportlab.lib.units import inch
-from reportlab.pdfgen import canvas
-
-from PIL import Image, ImageDraw, ImageFont
-
-import win32con
-import win32print
-import win32ui
+from PySide6.QtCore import Qt, QSizeF, QRectF
+from PySide6.QtGui import QFont, QPainter
+from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 
 
-# ---------- Public API (unchanged signatures) ----------
-
-def make_temp_label_path() -> Path:
-    d = Path(tempfile.gettempdir()) / "tagify_labels"
-    d.mkdir(parents=True, exist_ok=True)
-    return d / "prep_label_1x1.pdf"
+MM_PER_INCH = 25.4
 
 
-def generate_1x1_label_pdf(item_name: str, prepped: date, expires: date, out_path: Path):
+@dataclass
+class DirectPrintResult:
+    ok: bool
+    message: str
+
+
+def list_printers_qt() -> list[str]:
+    """Qt-side printer enumeration (works without pywin32)."""
+    names = []
+    for info in QPrinterInfo.availablePrinters():
+        names.append(info.printerName())
+    return names
+
+
+def is_pdf_printer(printer_name: str | None) -> bool:
+    if not printer_name:
+        return False
+    n = printer_name.lower()
+    return ("print to pdf" in n) or ("pdf" == n.strip()) or ("pdf" in n and "printer" in n)
+
+
+def print_label_direct(
+    printer_name: str,
+    item_name: str,
+    prepped: date,
+    expires: date,
+    copies: int = 1,
+) -> DirectPrintResult:
     """
-    Generates:
-      - a 1x1 inch PDF at out_path (for compatibility / debugging)
-      - a same-stem PNG next to it (this is what we print directly)
+    Prints a 1x1 inch label directly to the printer using Qt (no PDF temp file, no ShellExecute).
+    Note: If printer_name is 'Microsoft Print to PDF', Windows will still prompt to save.
     """
-    out_path = Path(out_path)
-    png_path = out_path.with_suffix(".png")
+    if not printer_name:
+        return DirectPrintResult(False, "No printer selected.")
 
-    # Render crisp label PNG (used for printing)
-    _render_label_png(item_name, prepped, expires, png_path, dpi=300)
-
-    # Also produce a true 1x1 PDF embedding that PNG (optional but useful)
-    w = 1.0 * inch
-    h = 1.0 * inch
-    c = canvas.Canvas(str(out_path), pagesize=(w, h))
-    c.drawImage(str(png_path), 0, 0, width=w, height=h, preserveAspectRatio=True, mask='auto')
-    c.showPage()
-    c.save()
-
-
-def print_label_pdf(pdf_path: str, printer_name: str | None = None):
-    """
-    Prints directly via Win32 GDI to the selected printer.
-    No ShellExecute. No external viewer.
-    """
-    pdf = Path(pdf_path)
-    if not pdf.exists():
-        raise FileNotFoundError(f"Label PDF not found: {pdf}")
-
-    png = pdf.with_suffix(".png")
-    if not png.exists():
-        raise FileNotFoundError(
-            f"Label PNG not found next to PDF: {png}\n"
-            "Call generate_1x1_label_pdf(...) before print_label_pdf(...)."
+    # Print-to-PDF will always prompt user for a save path; that's driver behavior.
+    if is_pdf_printer(printer_name):
+        return DirectPrintResult(
+            False,
+            "Selected printer is a PDF printer (Print to PDF). "
+            "Windows will always prompt for a save location. Select a real printer to print silently."
         )
 
-    if os.name != "nt":
-        raise RuntimeError("Printing is implemented for Windows only.")
+    # Locate printer
+    info = None
+    for p in QPrinterInfo.availablePrinters():
+        if p.printerName() == printer_name:
+            info = p
+            break
+    if info is None:
+        return DirectPrintResult(False, f"Printer not found: {printer_name}")
 
-    if not printer_name:
-        printer_name = win32print.GetDefaultPrinter()
+    # Setup printer job
+    printer = QPrinter(info)
+    printer.setPrinterName(printer_name)
+    printer.setCopyCount(max(1, int(copies)))
+    printer.setFullPage(True)
 
-    # Best-effort: try to force a 1x1 form to reduce long feed
-    _try_select_1x1_form(printer_name)
+    # Force 1x1 inch page size (25.4mm x 25.4mm)
+    printer.setPageSizeMM(QSizeF(MM_PER_INCH, MM_PER_INCH))
 
-    # Print the PNG via GDI
-    _print_png_gdi(printer_name, png)
+    # Higher DPI helps small label clarity (driver may override, but it's a good hint)
+    printer.setResolution(300)
 
+    painter = QPainter()
+    if not painter.begin(printer):
+        return DirectPrintResult(False, "Could not start print job (painter.begin failed).")
 
-# ---------- Internal helpers ----------
-
-def _render_label_png(item_name: str, prepped: date, expires: date, out_path: Path, dpi: int = 300) -> None:
-    size_px = int(dpi * 1.0)  # 1 inch square
-    img = Image.new("RGB", (size_px, size_px), "white")
-    draw = ImageDraw.Draw(img)
-
-    pad = int(size_px * 0.08)
-    y = pad
-
-    font_bold = _load_font(prefer_bold=True, size=int(size_px * 0.13))
-    font_small = _load_font(prefer_bold=False, size=int(size_px * 0.09))
-
-    title = item_name.strip()
-    title = _ellipsize_to_width(draw, title, font_bold, size_px - pad * 2)
-
-    draw.text((pad, y), title, fill="black", font=font_bold)
-    y += int(size_px * 0.22)
-
-    prepped_s = prepped.strftime("%m/%d/%Y")
-    expires_s = expires.strftime("%m/%d/%Y")
-
-    draw.text((pad, y), f"Prepped: {prepped_s}", fill="black", font=font_small)
-    y += int(size_px * 0.14)
-    draw.text((pad, y), f"Expires: {expires_s}", fill="black", font=font_small)
-
-    img.save(out_path, "PNG", optimize=True)
-
-
-def _load_font(prefer_bold: bool, size: int) -> ImageFont.ImageFont:
-    win = os.environ.get("WINDIR", r"C:\Windows")
-    fonts = Path(win) / "Fonts"
-
-    candidates = []
-    if prefer_bold:
-        candidates += [fonts / "segoeuib.ttf", fonts / "arialbd.ttf", fonts / "calibrib.ttf"]
-    else:
-        candidates += [fonts / "segoeui.ttf", fonts / "arial.ttf", fonts / "calibri.ttf"]
-
-    for p in candidates:
-        try:
-            if p.exists():
-                return ImageFont.truetype(str(p), size=size)
-        except Exception:
-            pass
-
-    return ImageFont.load_default()
-
-
-def _ellipsize_to_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_w: int) -> str:
-    if draw.textlength(text, font=font) <= max_w:
-        return text
-    ell = "…"
-    t = text
-    while t and draw.textlength(t + ell, font=font) > max_w:
-        t = t[:-1]
-    return (t + ell) if t else ell
-
-
-def _try_select_1x1_form(printer_name: str) -> None:
-    """
-    Best-effort: create/select a 1x1 inch form.
-    If the driver honors it, the printer will stop feeding a long tail.
-    If the driver ignores forms (common on receipt printers), you'll still get extra feed.
-    """
-    FORM_NAME = "TAGIFY_1x1"
-    mm_thousandths = int(25.4 * 1000)  # 1 inch in thousandths of mm
-
-    hPrinter = None
     try:
-        hPrinter = win32print.OpenPrinter(printer_name)
+        # Work in printer pixels
+        page_rect = printer.pageRect(QPrinter.DevicePixel)
 
-        # Try add form if missing
-        try:
-            forms = [f["pName"] for f in win32print.EnumForms(hPrinter, 1)]
-            if FORM_NAME not in forms:
-                form = {
-                    "pName": FORM_NAME,
-                    "Size": {"cx": mm_thousandths, "cy": mm_thousandths},
-                    "ImageableArea": {"left": 0, "top": 0, "right": mm_thousandths, "bottom": mm_thousandths},
-                }
-                win32print.AddForm(hPrinter, 1, form)
-        except Exception:
-            pass
+        # Padding inside label
+        pad = int(page_rect.width() * 0.07)
+        x0 = page_rect.left() + pad
+        y0 = page_rect.top() + pad
+        w = page_rect.width() - 2 * pad
+        h = page_rect.height() - 2 * pad
 
-        # Set printer devmode to use the form
-        try:
-            info2 = win32print.GetPrinter(hPrinter, 2)
-            devmode = info2["pDevMode"]
-            if devmode:
-                devmode.FormName = FORM_NAME
-                devmode.Fields |= win32con.DM_FORMNAME
-                info2["pDevMode"] = devmode
-                win32print.SetPrinter(hPrinter, 2, info2, 0)
-        except Exception:
-            pass
+        # Text
+        name = (item_name or "").strip()
+        prepped_s = prepped.strftime("%m/%d/%Y")
+        expires_s = expires.strftime("%m/%d/%Y")
+
+        # Fonts (tune for 1x1)
+        name_font = QFont("Segoe UI", 12)
+        name_font.setBold(True)
+
+        meta_font = QFont("Segoe UI", 8)
+
+        painter.setRenderHint(QPainter.TextAntialiasing, True)
+
+        # Draw name at top
+        painter.setFont(name_font)
+        name_box = QRectF(x0, y0, w, h * 0.50)
+        painter.drawText(name_box, Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop, name)
+
+        # Draw meta
+        painter.setFont(meta_font)
+        meta_y = y0 + int(h * 0.55)
+        line_h = int(h * 0.18)
+
+        painter.drawText(QRectF(x0, meta_y, w, line_h), Qt.AlignLeft | Qt.AlignVCenter, f"Prepped: {prepped_s}")
+        painter.drawText(QRectF(x0, meta_y + line_h, w, line_h), Qt.AlignLeft | Qt.AlignVCenter, f"Expires:  {expires_s}")
 
     finally:
-        if hPrinter:
-            try:
-                win32print.ClosePrinter(hPrinter)
-            except Exception:
-                pass
+        painter.end()
 
-
-def _print_png_gdi(printer_name: str, png_path: Path) -> None:
-    from PIL import ImageWin
-
-    img = Image.open(png_path).convert("RGB")
-
-    # Create printer device context
-    hDC = win32ui.CreateDC()
-    hDC.CreatePrinterDC(printer_name)
-
-    hDC.StartDoc("Tagify Label")
-    hDC.StartPage()
-
-    printable_w = hDC.GetDeviceCaps(win32con.HORZRES)
-    printable_h = hDC.GetDeviceCaps(win32con.VERTRES)
-
-    img_w, img_h = img.size
-
-    scale = min(printable_w / img_w, printable_h / img_h)
-
-    out_w = int(img_w * scale)
-    out_h = int(img_h * scale)
-
-    x = int((printable_w - out_w) / 2)
-    y = int((printable_h - out_h) / 2)
-
-    # Convert PIL image to Windows bitmap
-    dib = ImageWin.Dib(img)
-
-    dib.draw(
-        hDC.GetHandleOutput(),
-        (x, y, x + out_w, y + out_h)
-    )
-
-    hDC.EndPage()
-    hDC.EndDoc()
-    hDC.DeleteDC()
-
-
-def _make_bmi_header(w: int, h: int):
-    """
-    BITMAPINFOHEADER for 24bpp DIB.
-    """
-    return {
-        "bmiHeader": {
-            "biSize": 40,
-            "biWidth": w,
-            "biHeight": h,
-            "biPlanes": 1,
-            "biBitCount": 24,
-            "biCompression": 0,
-            "biSizeImage": w * h * 3,
-            "biXPelsPerMeter": 0,
-            "biYPelsPerMeter": 0,
-            "biClrUsed": 0,
-            "biClrImportant": 0,
-        }
-    }
+    return DirectPrintResult(True, f"Sent {copies} label(s) to printer: {printer_name}")

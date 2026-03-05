@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
+from label_print import print_label_direct
 
 from PySide6.QtCore import Qt, QTimer, QDateTime, QSize
 from PySide6.QtGui import QIcon
@@ -14,7 +15,7 @@ from PySide6.QtWidgets import (
 
 import db
 from printer_backend import get_printer_state
-from label_print import generate_1x1_label_pdf, print_label_pdf, make_temp_label_path
+#from label_print import generate_1x1_label_pdf, print_label_pdf, make_temp_label_path
 
 
 @dataclass
@@ -423,16 +424,16 @@ class MainTab(QWidget):
 
         prepped = date.today()
         expires = prepped + timedelta(days=self.selected.expire_days)
+        result = print_label_direct(
+            printer_name=printer_name,
+            item_name=self.selected.name,
+            prepped=prepped,
+            expires=expires,
+            copies=self.copies.value(),
+        )
 
-        pdf_path = make_temp_label_path()
-        generate_1x1_label_pdf(self.selected.name, prepped, expires, pdf_path)
-
-        copies = self.copies.value()
-        try:
-            for _ in range(copies):
-                print_label_pdf(str(pdf_path), printer_name=printer_name)
-        except Exception as e:
-            QMessageBox.critical(self, "Print failed", str(e))
+        if not result.ok:
+            QMessageBox.warning(self, "Print failed", result.message)
             return
 
-        QMessageBox.information(self, "Printed", f"Sent {copies} label(s) to printer.")
+        QMessageBox.information(self, "Printed", result.message)

@@ -9,11 +9,11 @@ from PySide6.QtWidgets import (
     QFormLayout, QComboBox, QMessageBox, QLineEdit, QGroupBox, QTabWidget,
     QTableWidget, QTableWidgetItem, QFileDialog, QSpinBox, QDialog, QHeaderView
 )
-
+from label_print import print_label_direct
 import db
 from security import verify_password, hash_password
 from printer_backend import list_printers, get_printer_state
-from label_print import generate_1x1_label_pdf, print_label_pdf, make_temp_label_path
+#from label_print import generate_1x1_label_pdf, print_label_pdf, make_temp_label_path
 
 
 class PasswordDialog(QDialog):
@@ -367,16 +367,11 @@ class SettingsTab(QWidget):
 
         prepped = date.today()
         expires = prepped + timedelta(days=3)
-        pdf_path = make_temp_label_path()
-        generate_1x1_label_pdf("TEST LABEL", prepped, expires, pdf_path)
-
-        try:
-            print_label_pdf(str(pdf_path), printer_name=printer_name)
-        except Exception as e:
-            QMessageBox.critical(self, "Test print failed", str(e))
-            return
-
-        QMessageBox.information(self, "Test sent", "A test label was sent to the printer.")
+        result = print_label_direct(printer_name, "TEST LABEL", prepped, expires, copies=1)
+        if not result.ok:
+            QMessageBox.critical(self, "Test print failed", result.message)
+        else:
+            QMessageBox.information(self, "Test sent", result.message)
 
     # -------------------------
     # Admin UX
