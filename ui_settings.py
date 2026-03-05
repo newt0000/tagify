@@ -7,13 +7,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
     QFormLayout, QComboBox, QMessageBox, QLineEdit, QGroupBox, QTabWidget,
-    QTableWidget, QTableWidgetItem, QFileDialog, QSpinBox, QDialog
+    QTableWidget, QTableWidgetItem, QFileDialog, QSpinBox, QDialog, QHeaderView
 )
 
 import db
 from security import verify_password, hash_password
-from label_print import generate_1x1_label_pdf, print_label_pdf, make_temp_label_path
 from printer_backend import list_printers, get_printer_state
+from label_print import generate_1x1_label_pdf, print_label_pdf, make_temp_label_path
 
 
 class PasswordDialog(QDialog):
@@ -21,21 +21,24 @@ class PasswordDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setModal(True)
-        self.resize(360, 140)
+        self.resize(360, 150)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 14, 14, 14)
         root.setSpacing(10)
 
         lbl = QLabel(prompt)
+
         self.pw = QLineEdit()
         self.pw.setEchoMode(QLineEdit.Password)
 
         btn_row = QHBoxLayout()
-        self.ok = QPushButton("OK")
+        btn_row.addStretch(1)
         self.cancel = QPushButton("Cancel")
-        self.ok.clicked.connect(self.accept)
+        self.ok = QPushButton("OK")
+        self.ok.setObjectName("Primary")
         self.cancel.clicked.connect(self.reject)
+        self.ok.clicked.connect(self.accept)
         btn_row.addWidget(self.cancel)
         btn_row.addWidget(self.ok)
 
@@ -49,18 +52,19 @@ class ItemDialog(QDialog):
         super().__init__(parent)
         self.setModal(True)
         self.setWindowTitle("Add Item" if item is None else "Edit Item")
-        self.resize(420, 260)
+        self.resize(460, 280)
         self.icon_path: str | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 14, 14, 14)
-        root.setSpacing(10)
+        root.setSpacing(12)
 
         form = QFormLayout()
         form.setHorizontalSpacing(14)
         form.setVerticalSpacing(10)
 
         self.name = QLineEdit()
+
         self.expire_days = QSpinBox()
         self.expire_days.setRange(0, 3650)
         self.expire_days.setValue(3)
@@ -72,39 +76,46 @@ class ItemDialog(QDialog):
         for c in categories:
             self.category.addItem(c["name"], c["id"])
 
-        icon_row = QHBoxLayout()
-        self.icon_label = QLabel("(none)")
-        self.btn_pick = QPushButton("Choose…")
-        self.btn_clear = QPushButton("Clear")
-        self.btn_pick.clicked.connect(self.pick_icon)
-        self.btn_clear.clicked.connect(self.clear_icon)
-        icon_row.addWidget(self.icon_label, 1)
-        icon_row.addWidget(self.btn_pick)
-        icon_row.addWidget(self.btn_clear)
-
         form.addRow("Name:", self.name)
         form.addRow("Expire Days:", self.expire_days)
         form.addRow("Category:", self.category)
 
         root.addLayout(form)
-        root.addWidget(QLabel("Icon (optional, UI only):"))
+
+        # Icon picker row
+        icon_label = QLabel("Icon (optional, UI only):")
+        root.addWidget(icon_label)
+
+        icon_row = QHBoxLayout()
+        self.icon_value = QLabel("(none)")
+        self.icon_value.setObjectName("Muted")
+        self.btn_pick = QPushButton("Choose…")
+        self.btn_clear = QPushButton("Clear")
+        self.btn_pick.clicked.connect(self.pick_icon)
+        self.btn_clear.clicked.connect(self.clear_icon)
+
+        icon_row.addWidget(self.icon_value, 1)
+        icon_row.addWidget(self.btn_pick)
+        icon_row.addWidget(self.btn_clear)
         root.addLayout(icon_row)
 
+        # Buttons
         btns = QHBoxLayout()
+        btns.addStretch(1)
         self.btn_cancel = QPushButton("Cancel")
         self.btn_ok = QPushButton("Save")
+        self.btn_ok.setObjectName("Primary")
         self.btn_cancel.clicked.connect(self.reject)
         self.btn_ok.clicked.connect(self.accept)
         btns.addWidget(self.btn_cancel)
         btns.addWidget(self.btn_ok)
-
         root.addLayout(btns)
 
         if item:
             self.name.setText(item["name"])
             self.expire_days.setValue(int(item["expire_days"]))
             self.icon_path = item.get("icon_path")
-            self.icon_label.setText(self.icon_path if self.icon_path else "(none)")
+            self.icon_value.setText(self.icon_path if self.icon_path else "(none)")
             cat_id = item.get("category_id")
             idx = self.category.findData(cat_id)
             if idx >= 0:
@@ -114,37 +125,11 @@ class ItemDialog(QDialog):
         p, _ = QFileDialog.getOpenFileName(self, "Choose icon", "", "Images (*.png *.jpg *.jpeg *.ico)")
         if p:
             self.icon_path = p
-            self.icon_label.setText(p)
+            self.icon_value.setText(p)
 
     def clear_icon(self):
         self.icon_path = None
-        self.icon_label.setText("(none)")
-
-
-class RenameDialog(QDialog):
-    def __init__(self, parent=None, title: str = "Rename", prompt: str = "New name:"):
-        super().__init__(parent)
-        self.setWindowTitle(title)
-        self.setModal(True)
-        self.resize(380, 140)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 14)
-        root.setSpacing(10)
-
-        root.addWidget(QLabel(prompt))
-        self.name = QLineEdit()
-        root.addWidget(self.name)
-
-        btn_row = QHBoxLayout()
-        self.cancel = QPushButton("Cancel")
-        self.ok = QPushButton("OK")
-        self.cancel.clicked.connect(self.reject)
-        self.ok.clicked.connect(self.accept)
-        btn_row.addWidget(self.cancel)
-        btn_row.addWidget(self.ok)
-
-        root.addLayout(btn_row)
+        self.icon_value.setText("(none)")
 
 
 class SettingsTab(QWidget):
@@ -157,111 +142,179 @@ class SettingsTab(QWidget):
         root.setContentsMargins(14, 14, 14, 14)
         root.setSpacing(12)
 
-        # ---- User settings card ----
-        card = QFrame()
-        card.setObjectName("Card")
-        root.addWidget(card)
+        # =========================
+        # Settings Card
+        # =========================
+        settings_card = QFrame()
+        settings_card.setObjectName("Card")
+        root.addWidget(settings_card)
 
-        card_l = QVBoxLayout(card)
-        card_l.setContentsMargins(14, 14, 14, 14)
-        card_l.setSpacing(10)
+        sc = QVBoxLayout(settings_card)
+        sc.setContentsMargins(14, 14, 14, 14)
+        sc.setSpacing(12)
 
         title = QLabel("Settings")
-        title.setStyleSheet("font-weight: 600; font-size: 12pt;")
-        card_l.addWidget(title)
+        title.setStyleSheet("font-weight: 700; font-size: 12pt;")
+        sc.addWidget(title)
 
-        form = QFormLayout()
-        form.setHorizontalSpacing(14)
-        form.setVerticalSpacing(10)
+        # Row: printer picker + status pill
+        row = QHBoxLayout()
+        row.setSpacing(10)
 
         self.printer = QComboBox()
-        self.printer.addItem("(Default / Not set)", "")
+        self.printer.setMinimumWidth(360)
+
+        self.printer_status_pill = QLabel("Offline")
+        self.printer_status_pill.setObjectName("PillBad")
+        self.printer_status_pill.setAlignment(Qt.AlignCenter)
+        self.printer_status_pill.setFixedHeight(30)
+        self.printer_status_pill.setMinimumWidth(120)
+
+        row.addWidget(QLabel("Printer:"), 0)
+        row.addWidget(self.printer, 1)
+        row.addWidget(self.printer_status_pill, 0)
+        sc.addLayout(row)
+
+        # Buttons row (compact like demo)
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+
+        self.btn_refresh = QPushButton("Refresh Printers")
+        self.btn_check = QPushButton("Check Connection")
+        self.btn_connect = QPushButton("Connect")
+        self.btn_disconnect = QPushButton("Disconnect")
+        self.btn_connect.setObjectName("Primary")
+
+        self.btn_refresh.clicked.connect(self.refresh_printers_dropdown)
+        self.btn_check.clicked.connect(self.check_connection)
+        self.btn_connect.clicked.connect(self.connect_printer)
+        self.btn_disconnect.clicked.connect(self.disconnect_printer)
+
+        btn_row.addWidget(self.btn_refresh)
+        btn_row.addWidget(self.btn_check)
+        btn_row.addStretch(1)
+        btn_row.addWidget(self.btn_disconnect)
+        btn_row.addWidget(self.btn_connect)
+        sc.addLayout(btn_row)
+
+        # Test print row
+        test_row = QHBoxLayout()
+        test_row.setSpacing(10)
+        self.btn_test = QPushButton("Test Print 1x1")
+        self.btn_test.clicked.connect(self.test_print)
+        test_row.addStretch(1)
+        test_row.addWidget(self.btn_test)
+        sc.addLayout(test_row)
+
+        # initial load printers + saved selection
         self.refresh_printers_dropdown()
+        self._apply_saved_printer_selection()
+        self._update_printer_pill()
 
-        btn_refresh = QPushButton("Refresh Printers")
-        btn_refresh.clicked.connect(self.refresh_printers_dropdown)
-
-        btn_check = QPushButton("Check Connection")
-        btn_check.clicked.connect(self.check_connection)
-
-        btn_save = QPushButton("Save Printer")
-        btn_save.clicked.connect(self.save_printer)
-
-        btn_test = QPushButton("Test Print 1x1")
-        btn_test.clicked.connect(self.test_print)
-
-        form.addRow("Printer:", self.printer)
-
-        row1 = QHBoxLayout()
-        row1.addWidget(btn_refresh)
-        row1.addWidget(btn_check)
-        card_l.addLayout(form)
-        card_l.addLayout(row1)
-
-        row2 = QHBoxLayout()
-        row2.addWidget(btn_save)
-        row2.addWidget(btn_test)
-        card_l.addLayout(row2)
-
-        # ---- Admin section ----
+        # =========================
+        # Admin Section (group style like app, but polished)
+        # =========================
         admin_box = QGroupBox("Admin")
         admin_l = QVBoxLayout(admin_box)
+        admin_l.setContentsMargins(12, 16, 12, 12)
+        admin_l.setSpacing(10)
+        root.addWidget(admin_box, 1)
 
-        unlock_row = QHBoxLayout()
+        admin_top = QHBoxLayout()
+        admin_top.setSpacing(10)
+
+        self.admin_state_pill = QLabel("Locked")
+        self.admin_state_pill.setObjectName("PillBad")
+        self.admin_state_pill.setAlignment(Qt.AlignCenter)
+        self.admin_state_pill.setFixedHeight(30)
+        self.admin_state_pill.setMinimumWidth(110)
+
         self.btn_unlock = QPushButton("Enter Admin Mode")
+        self.btn_unlock.setObjectName("Primary")
         self.btn_unlock.clicked.connect(self.unlock_admin)
-        unlock_row.addWidget(self.btn_unlock)
+
+        self.btn_lock = QPushButton("Lock Admin Mode")
+        self.btn_lock.clicked.connect(self.lock_admin)
+        self.btn_lock.setEnabled(False)
 
         self.btn_change_pw = QPushButton("Change Admin Password")
         self.btn_change_pw.clicked.connect(self.change_password)
         self.btn_change_pw.setEnabled(False)
-        unlock_row.addWidget(self.btn_change_pw)
 
-        admin_l.addLayout(unlock_row)
+        admin_top.addWidget(self.admin_state_pill)
+        admin_top.addWidget(self.btn_unlock)
+        admin_top.addWidget(self.btn_lock)
+        admin_top.addStretch(1)
+        admin_top.addWidget(self.btn_change_pw)
+        admin_l.addLayout(admin_top)
 
+        # Admin tabs
         self.admin_tabs = QTabWidget()
         self.admin_tabs.setEnabled(False)
+        admin_l.addWidget(self.admin_tabs, 1)
 
         self.items_tab = QWidget()
         self.cats_tab = QWidget()
         self.admin_tabs.addTab(self.items_tab, "Items")
         self.admin_tabs.addTab(self.cats_tab, "Categories")
-        admin_l.addWidget(self.admin_tabs)
-
-        root.addWidget(admin_box, 1)
 
         self._build_items_tab()
         self._build_categories_tab()
         self.refresh_admin_tables()
 
-    # ---- Printer UI ----
+    # -------------------------
+    # Printer UX
+    # -------------------------
     def refresh_printers_dropdown(self):
-        printers = list_printers()
-
         current = self.printer.currentData() or ""
+
         self.printer.blockSignals(True)
         self.printer.clear()
         self.printer.addItem("(Default / Not set)", "")
 
-        for p in printers:
+        for p in list_printers():
             self.printer.addItem(p, p)
 
-        # Restore selection
+        # restore selection (current)
         if current:
             idx = self.printer.findData(current)
             if idx >= 0:
                 self.printer.setCurrentIndex(idx)
 
-        # Prefer saved selection
+        self.printer.blockSignals(False)
+
+    def _apply_saved_printer_selection(self):
         con = db.connect()
         saved = db.get_setting(con, "printer_name") or ""
         con.close()
-        if saved:
-            idx = self.printer.findData(saved)
-            if idx >= 0:
-                self.printer.setCurrentIndex(idx)
 
-        self.printer.blockSignals(False)
+        idx = self.printer.findData(saved)
+        if idx >= 0:
+            self.printer.setCurrentIndex(idx)
+
+    def _update_printer_pill(self):
+        name = self.printer.currentData() or ""
+        con = db.connect()
+        saved = db.get_setting(con, "printer_name") or ""
+        con.close()
+
+        # show status of saved printer, not just current dropdown
+        state = get_printer_state(saved if saved else None)
+
+        if state.ok:
+            self.printer_status_pill.setText("Connected")
+            self.printer_status_pill.setObjectName("PillOk")
+        else:
+            self.printer_status_pill.setText("Offline")
+            self.printer_status_pill.setObjectName("PillBad")
+
+        self.printer_status_pill.setToolTip(
+            f"Printer: {state.printer_name or '(none)'}\nStatus: {state.status_text}"
+        )
+
+        # re-polish for objectName change
+        self.printer_status_pill.style().unpolish(self.printer_status_pill)
+        self.printer_status_pill.style().polish(self.printer_status_pill)
 
     def check_connection(self):
         name = self.printer.currentData() or ""
@@ -272,21 +325,31 @@ class SettingsTab(QWidget):
             f"Printer: {state.printer_name or '(none)'}\nStatus: {state.status_text}"
         )
 
-    def save_printer(self):
+    def connect_printer(self):
         name = self.printer.currentData() or ""
         con = db.connect()
         db.set_setting(con, "printer_name", name)
         con.close()
 
-        # notify the app so header bubble updates
         self.on_data_changed()
+        self._update_printer_pill()
 
         state = get_printer_state(name if name else None)
         QMessageBox.information(
             self,
-            "Saved",
+            "Connected",
             f"Saved printer selection.\n\nPrinter: {state.printer_name or '(none)'}\nStatus: {state.status_text}"
         )
+
+    def disconnect_printer(self):
+        con = db.connect()
+        db.set_setting(con, "printer_name", "")
+        con.close()
+
+        self.on_data_changed()
+        self._update_printer_pill()
+
+        QMessageBox.information(self, "Disconnected", "Printer selection cleared.")
 
     def test_print(self):
         con = db.connect()
@@ -295,7 +358,11 @@ class SettingsTab(QWidget):
 
         state = get_printer_state(printer_name)
         if not state.ok:
-            QMessageBox.warning(self, "No printer connected", "Select a working printer first.")
+            QMessageBox.warning(
+                self,
+                "No printer connected",
+                "Please Connect to a printer first."
+            )
             return
 
         prepped = date.today()
@@ -311,7 +378,9 @@ class SettingsTab(QWidget):
 
         QMessageBox.information(self, "Test sent", "A test label was sent to the printer.")
 
-    # ---- Admin auth ----
+    # -------------------------
+    # Admin UX
+    # -------------------------
     def unlock_admin(self):
         dlg = PasswordDialog(self)
         if dlg.exec() != QDialog.Accepted:
@@ -328,8 +397,25 @@ class SettingsTab(QWidget):
         self.admin_unlocked = True
         self.admin_tabs.setEnabled(True)
         self.btn_change_pw.setEnabled(True)
-        self.btn_unlock.setText("Admin Mode: Unlocked")
+        self.btn_lock.setEnabled(True)
         self.btn_unlock.setEnabled(False)
+
+        self.admin_state_pill.setText("Unlocked")
+        self.admin_state_pill.setObjectName("PillOk")
+        self.admin_state_pill.style().unpolish(self.admin_state_pill)
+        self.admin_state_pill.style().polish(self.admin_state_pill)
+
+    def lock_admin(self):
+        self.admin_unlocked = False
+        self.admin_tabs.setEnabled(False)
+        self.btn_change_pw.setEnabled(False)
+        self.btn_lock.setEnabled(False)
+        self.btn_unlock.setEnabled(True)
+
+        self.admin_state_pill.setText("Locked")
+        self.admin_state_pill.setObjectName("PillBad")
+        self.admin_state_pill.style().unpolish(self.admin_state_pill)
+        self.admin_state_pill.style().polish(self.admin_state_pill)
 
     def change_password(self):
         if not self.admin_unlocked:
@@ -347,29 +433,45 @@ class SettingsTab(QWidget):
         con = db.connect()
         db.set_setting(con, "admin_password_hash", hash_password(new_pw))
         con.close()
+
         QMessageBox.information(self, "Updated", "Admin password updated.")
 
-    # ---- Admin: Items ----
+    # -------------------------
+    # Admin: Items tab
+    # -------------------------
     def _build_items_tab(self):
         layout = QVBoxLayout(self.items_tab)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(10)
 
         top = QHBoxLayout()
+        top.setSpacing(10)
+
         self.btn_add_item = QPushButton("Add Item")
         self.btn_edit_item = QPushButton("Edit Selected")
         self.btn_del_item = QPushButton("Delete Selected")
+        self.btn_del_item.setObjectName("Danger")
+
         self.btn_add_item.clicked.connect(self.add_item)
         self.btn_edit_item.clicked.connect(self.edit_item)
         self.btn_del_item.clicked.connect(self.delete_item)
+
         top.addWidget(self.btn_add_item)
         top.addWidget(self.btn_edit_item)
         top.addWidget(self.btn_del_item)
+        top.addStretch(1)
         layout.addLayout(top)
 
         self.items_table = QTableWidget(0, 5)
+        self.items_table.setObjectName("DataTable")
         self.items_table.setHorizontalHeaderLabels(["ID", "Name", "Expire Days", "Category", "Icon"])
         self.items_table.setColumnHidden(0, True)
         self.items_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.items_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.items_table.setAlternatingRowColors(True)
+        self.items_table.verticalHeader().setVisible(False)
+        self.items_table.horizontalHeader().setStretchLastSection(True)
+        self.items_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.items_table, 1)
 
     def _selected_item_id(self) -> int | None:
@@ -407,7 +509,6 @@ class SettingsTab(QWidget):
         if not self.admin_unlocked:
             QMessageBox.information(self, "Locked", "Unlock admin mode first.")
             return
-
         item_id = self._selected_item_id()
         if item_id is None:
             return
@@ -439,7 +540,6 @@ class SettingsTab(QWidget):
         if not self.admin_unlocked:
             QMessageBox.information(self, "Locked", "Unlock admin mode first.")
             return
-
         item_id = self._selected_item_id()
         if item_id is None:
             return
@@ -454,19 +554,29 @@ class SettingsTab(QWidget):
         self.refresh_admin_tables()
         self.on_data_changed()
 
-    # ---- Admin: Categories ----
+    # -------------------------
+    # Admin: Categories tab
+    # -------------------------
     def _build_categories_tab(self):
         layout = QVBoxLayout(self.cats_tab)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(10)
 
         top = QHBoxLayout()
+        top.setSpacing(10)
+
         self.cat_name = QLineEdit()
         self.cat_name.setPlaceholderText("New category name…")
+
         self.btn_add_cat = QPushButton("Add Category")
         self.btn_ren_cat = QPushButton("Rename Selected")
         self.btn_del_cat = QPushButton("Delete Selected")
+        self.btn_del_cat.setObjectName("Danger")
+
         self.btn_add_cat.clicked.connect(self.add_category)
         self.btn_ren_cat.clicked.connect(self.rename_category)
         self.btn_del_cat.clicked.connect(self.delete_category)
+
         top.addWidget(self.cat_name, 1)
         top.addWidget(self.btn_add_cat)
         top.addWidget(self.btn_ren_cat)
@@ -474,10 +584,15 @@ class SettingsTab(QWidget):
         layout.addLayout(top)
 
         self.cats_table = QTableWidget(0, 2)
+        self.cats_table.setObjectName("DataTable")
         self.cats_table.setHorizontalHeaderLabels(["ID", "Name"])
         self.cats_table.setColumnHidden(0, True)
         self.cats_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.cats_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.cats_table.setAlternatingRowColors(True)
+        self.cats_table.verticalHeader().setVisible(False)
+        self.cats_table.horizontalHeader().setStretchLastSection(True)
+        self.cats_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.cats_table, 1)
 
     def _selected_cat_id(self) -> int | None:
@@ -517,10 +632,13 @@ class SettingsTab(QWidget):
         if cat_id is None:
             return
 
-        dlg = RenameDialog(self, title="Rename Category", prompt="New category name:")
+        dlg = PasswordDialog(self, title="Rename Category", prompt="Type new name:")
+        dlg.pw.setEchoMode(QLineEdit.Normal)
+        dlg.pw.setPlaceholderText("New category name")
         if dlg.exec() != QDialog.Accepted:
             return
-        new_name = dlg.name.text().strip()
+
+        new_name = dlg.pw.text().strip()
         if not new_name:
             return
 
@@ -555,6 +673,9 @@ class SettingsTab(QWidget):
         self.refresh_admin_tables()
         self.on_data_changed()
 
+    # -------------------------
+    # Refresh tables
+    # -------------------------
     def refresh_admin_tables(self):
         con = db.connect()
         items = db.list_items(con)
