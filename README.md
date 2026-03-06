@@ -20,13 +20,18 @@ The application is built with **Python + PySide6** and integrates directly with 
 ---
 ## Download
 
-<p align="center">
+<p align="middle">
 <a href="https://raw.githubusercontent.com/newt0000/tagify/main/dist/Tagify/tagify-exec.zip">
 <img src="https://img.shields.io/badge/⬇%20Download%20Executable%20Package-Tagify-blue?style=for-the-badge">
+</a>
+
+<a href="http://newt-tech.com/tools/tagify/demo.html">
+<img src="https://img.shields.io/badge/Visit%20Demo-Tagify-green?style=for-the-badge">
 </a>
 </p>
 
 ---
+
 
 # Table of Contents
 

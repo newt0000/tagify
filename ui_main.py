@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from label_print import print_label_direct
 
-from PySide6.QtCore import Qt, QTimer, QDateTime, QSize
+from PySide6.QtCore import Qt, QTimer, QDateTime
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
@@ -14,8 +15,26 @@ from PySide6.QtWidgets import (
 )
 
 import db
+from label_print import print_label_direct
 from printer_backend import get_printer_state
-#from label_print import generate_1x1_label_pdf, print_label_pdf, make_temp_label_path
+
+
+APP_NAME = "Tagify"
+
+
+def get_location_header() -> str:
+    config_path = Path(os.environ.get("APPDATA", Path.home())) / APP_NAME / "agent_config.json"
+
+    try:
+        if config_path.exists():
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            name = data.get("location_name", "Unknown Location")
+            code = data.get("location_code", "unknown")
+            return f"{name}  •  {code}"
+    except Exception:
+        pass
+
+    return "Unconfigured Location"
 
 
 @dataclass
@@ -113,15 +132,17 @@ class MainTab(QWidget):
         self.status_dot.setProperty("ok", "false")
         self.status_dot.setToolTip("Printer: (none)\nStatus: No printer selected")
 
-        title = QLabel("🏷️ Prep Sticker Printer")
-        title.setObjectName("Title")
-        subtitle = QLabel("Main Screen")
-        subtitle.setObjectName("Muted")
+        self.title = QLabel(f"Tagify Prep Assistant  —  {get_location_header()}")
+        self.title.setObjectName("Title")
+
+        self.subtitle = QLabel("Main Screen")
+        self.subtitle.setObjectName("Muted")
 
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
-        title_box.addWidget(title)
-        title_box.addWidget(subtitle)
+        title_box.addWidget(self.title)
+        title_box.addWidget(self.subtitle)
+
         title_box_w = QWidget()
         title_box_w.setLayout(title_box)
 
@@ -135,10 +156,15 @@ class MainTab(QWidget):
         top_l.addWidget(self.user_time)
         root.addWidget(top)
 
+        # location refresh timer
+        self.location_timer = QTimer(self)
+        self.location_timer.timeout.connect(self.update_location_header)
+        self.location_timer.start(10000)  # every 10 seconds
+
         # printer status refresh
         self._printer_timer = QTimer(self)
         self._printer_timer.timeout.connect(self.refresh_printer_status)
-        self._printer_timer.start(2000)
+        self._printer_timer.start(8000)
         self.refresh_printer_status()
 
         # --- Content row ---
@@ -225,7 +251,7 @@ class MainTab(QWidget):
 
         self.btn_print = QPushButton("Print")
         self.btn_print.setObjectName("Primary")
-        self.btn_print.setEnabled(False)  # enable only when item selected
+        self.btn_print.setEnabled(False)
         self.btn_print.clicked.connect(self.on_print)
         left_l.addWidget(self.btn_print)
 
@@ -278,6 +304,9 @@ class MainTab(QWidget):
         self.reload_categories()
         self.refresh_tiles()
 
+    def update_location_header(self):
+        self.title.setText(f"Tagify Prep Assistant  —  {get_location_header()}")
+
     def _tick(self):
         now = QDateTime.currentDateTime()
         self.user_time.setText(f"Operator  {now.toString('HH:mm:ss')}")
@@ -288,13 +317,25 @@ class MainTab(QWidget):
         con.close()
 
         state = get_printer_state(printer_name)
-        self.status_dot.setProperty("ok", "true" if state.ok else "false")
-        self.status_dot.setToolTip(
-            f"Printer: {state.printer_name or '(none)'}\nStatus: {state.status_text}"
-        )
+        new_ok = "true" if state.ok else "false"
+        new_tip = f"Printer: {state.printer_name or '(none)'}\nStatus: {state.status_text}"
 
-        self.status_dot.style().unpolish(self.status_dot)
-        self.status_dot.style().polish(self.status_dot)
+        current_ok = self.status_dot.property("ok")
+        current_tip = self.status_dot.toolTip()
+
+        changed = False
+
+        if current_ok != new_ok:
+            self.status_dot.setProperty("ok", new_ok)
+            changed = True
+
+        if current_tip != new_tip:
+            self.status_dot.setToolTip(new_tip)
+
+        if changed:
+            self.status_dot.style().unpolish(self.status_dot)
+            self.status_dot.style().polish(self.status_dot)
+            self.status_dot.update()
 
     def adjust_copies(self, delta: int):
         self.copies.setValue(max(1, self.copies.value() + delta))
@@ -312,18 +353,15 @@ class MainTab(QWidget):
         self.category.blockSignals(False)
 
     def refresh_tiles(self):
-        # Clear selection state
         self.selected = None
         self.btn_print.setEnabled(False)
         self.update_preview()
 
-        # Clear group + buttons list
         for b in self._tile_btns:
             self._tile_group.removeButton(b)
             b.setParent(None)
         self._tile_btns.clear()
 
-        # Clear grid widgets
         while self.grid.count():
             item = self.grid.takeAt(0)
             w = item.widget()
@@ -345,7 +383,6 @@ class MainTab(QWidget):
             btn = TileButton(it["name"], it.get("icon_path"), subtitle)
             btn.setProperty("item_id", it["id"])
 
-            # Add to exclusive group
             self._tile_group.addButton(btn)
             btn.clicked.connect(self._on_tile_clicked)
 
@@ -371,7 +408,6 @@ class MainTab(QWidget):
         self.on_select(int(item_id))
 
     def on_select(self, item_id: int):
-        # Ensure exclusivity visually: check only the selected tile.
         for b in self._tile_btns:
             b.setChecked(int(b.property("item_id")) == item_id)
 
@@ -424,6 +460,7 @@ class MainTab(QWidget):
 
         prepped = date.today()
         expires = prepped + timedelta(days=self.selected.expire_days)
+
         result = print_label_direct(
             printer_name=printer_name,
             item_name=self.selected.name,
