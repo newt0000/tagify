@@ -49,9 +49,9 @@ Send validation request to server
       │
       └── Key invalid / inactive → UI remains blocked
 ```
-First Run Behavior
+## First Run Behavior
 
-On a fresh installation:
+### On a fresh installation:
 
 No API key exists in the configuration.
 
@@ -67,13 +67,13 @@ Please request an API key from the developer.
 
 A request link will be provided which opens the API key request page.
 
-Entering an API Key
+### Entering an API Key
 
 Once a key is issued:
 
 Enter the API key into the license gate field.
 
-Click Submit.
+### Click Submit.
 
 The key is stored locally in the configuration file.
 
