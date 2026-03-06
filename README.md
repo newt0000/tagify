@@ -18,6 +18,157 @@ The system is designed for environments such as:
 The application is built with **Python + PySide6** and integrates directly with Windows printer drivers.
 
 ---
+## 🔐 API Key License Gate (Client Side)
+
+Tagify includes a built-in API key license gate that ensures each installation is registered and authorized before the application can be used.
+
+This system allows the developer to centrally monitor installations and control access to the software.
+
+⚠️ The administrative dashboard and registry system are private and controlled by the developer. End users only interact with the client-side validation process described below.
+
+### How the License Gate Works
+
+When Tagify starts, the program performs a remote validation check against the Tagify licensing server.
+
+The application will only unlock if the API key assigned to the installation is valid and active.
+
+### Startup flow:
+```
+Program Start
+      │
+      ▼
+Load local config (agent_config.json)
+      │
+      ▼
+Check stored API key
+      │
+      ▼
+Send validation request to server
+      │
+      ├── Key valid + active → Program unlocks
+      │
+      └── Key invalid / inactive → UI remains blocked
+```
+First Run Behavior
+
+On a fresh installation:
+
+No API key exists in the configuration.
+
+The License Gate screen will appear.
+
+The user must request a key.
+
+The gate will display a message similar to:
+
+No API key registered.
+
+Please request an API key from the developer.
+
+A request link will be provided which opens the API key request page.
+
+Entering an API Key
+
+Once a key is issued:
+
+Enter the API key into the license gate field.
+
+Click Submit.
+
+The key is stored locally in the configuration file.
+
+If valid, the gate will unlock and Tagify will start normally.
+
+### API Key Status States
+
+The license server supports multiple key states.
+
+#### Status	Meaning
+```
+Active	- The key is valid and Tagify will run
+Pending	- Key exists but has not been activated
+Paused	- Key temporarily disabled
+Revoked	- Key permanently disabled
+Invalid	- Key does not exist in registry
+```
+When a key is not active, the UI remains blocked and displays the corresponding message.
+
+#### Example:
+
+API key pending activation
+
+or
+
+API key not active / paused
+### Continuous Validation
+
+Tagify periodically rechecks the license status while running.
+
+This ensures that if a key is:
+```
+paused
+
+revoked
+
+disabled
+```
+
+the application will automatically lock again.
+Polling interval is configurable but typically runs every 10–30 seconds.
+
+### Local Configuration
+
+API keys and client settings are stored in:
+<code>
+%APPDATA%/Tagify/agent_config.json
+</code>
+
+#### Example:
+```json
+{
+  "server_url": "http://license-server:2455",
+  "api_key": "example_key_here",
+  "location_name": "Example Location",
+  "location_code": "001",
+  "app_version": "1.0.0"
+}
+```
+The configuration file is automatically created if it does not exist.
+
+### Installation Tracking
+
+Each installation generates a unique identifier (app_id) and reports telemetry to the licensing server including:
+- Machine hostname
+- Application version
+- Location name
+- Printer status
+- Last seen timestamp
+
+This allows the developer to monitor active deployments.
+
+### Security Notes
+
+The license gate is designed to prevent unauthorized use of the software.
+The application must successfully validate its API key with the server before unlocking.
+If the server cannot validate the key, the UI remains locked until a valid key is provided.
+
+### Offline Behavior
+
+If the license server is temporarily unreachable:
+Tagify will retry validation automatically
+previously validated keys may continue running until the next check cycle
+
+## Summary
+
+    The API key system provides:
+    controlled software distribution
+    centralized license management
+    installation telemetry
+    remote access control
+All administrative functions are handled through the private licensing dashboard.
+
+<red style="color:red">NOTE: if the tagify validation server is down Tagify will lock out clients until validation servers return to operation
+
 ## Download
 
 <p align="middle">
