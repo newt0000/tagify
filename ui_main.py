@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
+from config_source import get_active_config
 
 from PySide6.QtCore import Qt, QTimer, QDateTime
 from PySide6.QtGui import QIcon
@@ -23,18 +24,13 @@ APP_NAME = "Tagify"
 
 
 def get_location_header() -> str:
-    config_path = Path(os.environ.get("APPDATA", Path.home())) / APP_NAME / "agent_config.json"
-
     try:
-        if config_path.exists():
-            data = json.loads(config_path.read_text(encoding="utf-8"))
-            name = data.get("location_name", "Unknown Location")
-            code = data.get("location_code", "unknown")
-            return f"{name}  •  {code}"
+        config, source_name, source_path = get_active_config()
+        name = config.get("location_name", "Unknown Location")
+        code = config.get("location_code", "unknown")
+        return f"{name}  •  {code}  [{source_name.upper()}]"
     except Exception:
-        pass
-
-    return "Unconfigured Location"
+        return "Unconfigured Location"
 
 
 @dataclass

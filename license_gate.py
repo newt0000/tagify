@@ -1,66 +1,15 @@
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
 from typing import Any
 
 import requests
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QHBoxLayout
 )
 
-APP_NAME = "Tagify"
-CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home())) / APP_NAME
-CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-
-CONFIG_PATH = CONFIG_DIR / "agent_config.json"
-
-
-def load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
-    try:
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        pass
-    return default
-
-
-def save_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
-
-def ensure_config() -> dict[str, Any]:
-    default = {
-        "server_url": "http://24.198.181.134:2455",
-        "api_key": "",
-        "location_name": "Unconfigured Location",
-        "location_code": "unknown",
-        "app_version": "1.0.0",
-        "printer_name": "",
-        "printer_connected": False,
-        "enabled": True,
-        "heartbeat_interval_seconds": 15,
-    }
-    config = load_json(CONFIG_PATH, default)
-    changed = False
-    for k, v in default.items():
-        if k not in config:
-            config[k] = v
-            changed = True
-    if changed or not CONFIG_PATH.exists():
-        save_json(CONFIG_PATH, config)
-    return config
-
-
-def write_api_key(api_key: str) -> dict[str, Any]:
-    config = ensure_config()
-    config["api_key"] = api_key.strip()
-    save_json(CONFIG_PATH, config)
-    return config
+from config_source import get_active_config, write_api_key
 
 
 def validate_key_direct(config: dict[str, Any]) -> dict[str, Any]:
@@ -183,7 +132,7 @@ class LicenseBlockOverlay(QWidget):
             }
         """)
 
-        self.config = ensure_config()
+        self.config, self.config_source, self.config_path = get_active_config()
 
         root = QVBoxLayout(self)
         root.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -202,11 +151,13 @@ class LicenseBlockOverlay(QWidget):
         self.current_key = QLabel("")
         self.current_key.setObjectName("Muted")
         self.current_key.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.current_key.setWordWrap(True)
 
         self.key_input = QLineEdit()
         self.key_input.setPlaceholderText("Enter API key")
         self.key_input.setMaximumWidth(520)
         self.key_input.setText(str(self.config.get("api_key", "")).strip())
+        self.key_input.returnPressed.connect(self.submit_key)
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
@@ -241,7 +192,6 @@ class LicenseBlockOverlay(QWidget):
         root.addWidget(self.request_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self.close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        self.refresh_status()
         QTimer.singleShot(200, self.refresh_status)
 
     def request_url(self) -> str:
@@ -258,13 +208,19 @@ class LicenseBlockOverlay(QWidget):
 
     def submit_key(self):
         new_key = self.key_input.text().strip()
-        self.config = write_api_key(new_key)
+        self.config, self.config_source, self.config_path = write_api_key(new_key)
         self.refresh_status()
 
     def refresh_status(self):
-        self.config = ensure_config()
+        self.config, self.config_source, self.config_path = get_active_config()
+
         key = str(self.config.get("api_key", "")).strip()
-        self.current_key.setText(f"Configured key: {key if key else '(none)'}")
+        self.current_key.setText(
+            f"Configured key: {key if key else '(none)'}   |   Source: {self.config_source.upper()}   |   {self.config_path}"
+        )
+
+        if self.key_input.text().strip() != key:
+            self.key_input.setText(key)
 
         result = validate_key_direct(self.config)
         self.body.setText(result.get("message", "Validation failed"))

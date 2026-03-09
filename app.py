@@ -6,12 +6,14 @@ from PySide6.QtGui import QResizeEvent
 from PySide6.QtCore import QProcess, QTimer
 
 import db
-import license_gate
 from styles import APP_QSS
 from ui_main import MainTab
 from ui_settings import SettingsTab
 from ui_config import ConfigTab
 from license_gate import LicenseBlockOverlay
+from devkey_mount import handle_devkey_mount_gate
+from config_source import get_active_config
+from ui_developer import DeveloperTab
 
 
 class MainWindow(QMainWindow):
@@ -28,7 +30,16 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(self.main_tab, "Main")
         self.tabs.addTab(self.settings_tab, "Settings")
-        self.tabs.addTab(self.config_tab, "Config")
+
+        self.developer_tab = None
+        try:
+            active_config, source_name, source_path = get_active_config()
+            if bool(active_config.get("developer", False)):
+                self.developer_tab = DeveloperTab(main_window=self)
+                self.tabs.addTab(self.developer_tab, "Developer")
+                self.tabs.addTab(self.config_tab, "Config")
+        except Exception:
+            pass
 
         self.setCentralWidget(self.tabs)
 
@@ -37,21 +48,6 @@ class MainWindow(QMainWindow):
         self._license_timer = QTimer(self)
         self._license_timer.timeout.connect(self.poll_license_status)
         self._license_timer.start(10000)  # every 10 seconds
-
-    def poll_license_status(self):
-        if self._license_overlay is None:
-            self._license_overlay = LicenseBlockOverlay(self)
-            self._license_overlay.unlocked.connect(self.on_license_unlocked)
-
-        self._license_overlay.refresh_status()
-
-        # if invalid, make sure blocker is visible
-        if self._license_overlay.isHidden():
-            return
-
-        self._license_overlay.setGeometry(self.rect())
-        self._license_overlay.show()
-        self._license_overlay.raise_()
 
     def on_data_changed(self):
         self.main_tab.reload_categories()
@@ -62,14 +58,30 @@ class MainWindow(QMainWindow):
         if self._license_overlay is None:
             self._license_overlay = LicenseBlockOverlay(self)
             self._license_overlay.unlocked.connect(self.on_license_unlocked)
+
         self._license_overlay.setGeometry(self.rect())
         self._license_overlay.show()
         self._license_overlay.raise_()
+
         QTimer.singleShot(200, self._license_overlay.refresh_status)
 
     def on_license_unlocked(self):
         if self._license_overlay is not None:
             self._license_overlay.hide()
+
+    def poll_license_status(self):
+        if self._license_overlay is None:
+            self._license_overlay = LicenseBlockOverlay(self)
+            self._license_overlay.unlocked.connect(self.on_license_unlocked)
+
+        self._license_overlay.refresh_status()
+
+        if self._license_overlay.isHidden():
+            return
+
+        self._license_overlay.setGeometry(self.rect())
+        self._license_overlay.show()
+        self._license_overlay.raise_()
 
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
@@ -102,6 +114,10 @@ def main():
 
     app = QApplication(sys.argv)
     app.setStyleSheet(APP_QSS)
+
+    # DEVKEY check and VHD mount must happen before the client UI becomes usable
+    if not handle_devkey_mount_gate():
+        sys.exit(0)
 
     w = MainWindow()
     w.start_agent()

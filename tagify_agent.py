@@ -11,11 +11,12 @@ from typing import Any
 
 import requests
 
+from config_source import get_active_config
+
 APP_NAME = "Tagify"
 CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home())) / APP_NAME
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-CONFIG_PATH = CONFIG_DIR / "agent_config.json"
 STATE_PATH = CONFIG_DIR / "agent_state.json"
 
 DEFAULT_INTERVAL_SECONDS = 15
@@ -52,36 +53,55 @@ def ensure_state() -> dict[str, Any]:
     return state
 
 
-def ensure_config() -> dict[str, Any]:
-    default = {
-        "server_url": "http://24.198.181.134:2455",
-        "api_key": "",
-        "location_name": "Unconfigured Location",
-        "location_code": "unknown",
-        "app_version": "1.0.0",
-        "printer_name": "",
-        "printer_connected": False,
-        "enabled": True,
-        "heartbeat_interval_seconds": DEFAULT_INTERVAL_SECONDS,
+def sync_location_from_server(config: dict[str, Any], source_path: Path) -> dict[str, Any]:
+    server_url = str(config.get("server_url", "")).rstrip("/")
+    api_key = str(config.get("api_key", "")).strip()
+
+    if not server_url or not api_key:
+        return config
+
+    headers = {
+        "X-API-Key": api_key
     }
 
-    config = load_json(CONFIG_PATH, default)
-    changed = False
+    try:
+        resp = requests.get(
+            f"{server_url}/api/key-info",
+            headers=headers,
+            timeout=10
+        )
 
-    for k, v in default.items():
-        if k not in config:
-            config[k] = v
+        if resp.status_code != 200:
+            print("[agent] key-info request failed:", resp.status_code, resp.text)
+            return config
+
+        data = resp.json()
+        if not data.get("ok"):
+            print("[agent] key-info response not ok:", data)
+            return config
+
+        changed = False
+
+        if config.get("location_name") != data.get("location_name"):
+            config["location_name"] = data.get("location_name", config.get("location_name", "Unknown"))
             changed = True
 
-    if changed or not CONFIG_PATH.exists():
-        save_json(CONFIG_PATH, config)
+        if config.get("location_code") != data.get("location_code"):
+            config["location_code"] = data.get("location_code", config.get("location_code", "unknown"))
+            changed = True
+
+        if changed:
+            print("[agent] updating location info from server")
+            save_json(source_path, config)
+
+    except Exception as e:
+        print("[agent] location sync failed:", e)
 
     return config
 
 
-def build_payload() -> dict[str, Any]:
+def build_payload(config: dict[str, Any]) -> dict[str, Any]:
     state = ensure_state()
-    config = ensure_config()
 
     return {
         "app_id": state["app_id"],
@@ -99,6 +119,7 @@ def build_payload() -> dict[str, Any]:
 def send_heartbeat(config: dict[str, Any], payload: dict[str, Any]) -> None:
     server_url = str(config.get("server_url", "")).rstrip("/")
     api_key = str(config.get("api_key", "")).strip()
+
     if not server_url or not api_key:
         print("[agent] missing server_url or api_key")
         return
@@ -126,71 +147,25 @@ def send_heartbeat(config: dict[str, Any], payload: dict[str, Any]) -> None:
     except Exception as e:
         print("[agent] heartbeat exception:", e)
 
-def sync_location_from_server(config: dict[str, Any]) -> dict[str, Any]:
-    server_url = str(config.get("server_url", "")).rstrip("/")
-    api_key = str(config.get("api_key", "")).strip()
-
-    if not server_url or not api_key:
-        return config
-
-    headers = {
-        "X-API-Key": api_key
-    }
-
-    try:
-        resp = requests.get(
-            f"{server_url}/api/key-info",
-            headers=headers,
-            timeout=10
-        )
-
-        if resp.status_code != 200:
-            return config
-
-        data = resp.json()
-
-        if not data.get("ok"):
-            return config
-
-        changed = False
-
-        if config.get("location_name") != data["location_name"]:
-            config["location_name"] = data["location_name"]
-            changed = True
-
-        if config.get("location_code") != data["location_code"]:
-            config["location_code"] = data["location_code"]
-            changed = True
-
-        if changed:
-            print("[agent] updating location info from server")
-            save_json(CONFIG_PATH, config)
-
-    except Exception as e:
-        print("[agent] location sync failed:", e)
-
-    return config
 
 def main() -> None:
     print("[agent] Started...")
-
     ensure_state()
-    ensure_config()
 
     while True:
-        config = ensure_config()
+        config, source_name, source_path = get_active_config()
 
-        config = sync_location_from_server(config)
+        config = sync_location_from_server(config, source_path)
 
         if config.get("enabled", True):
-            payload = build_payload()
+            payload = build_payload(config)
+            print(f"[agent] config source = {source_name} ({source_path})")
             send_heartbeat(config, payload)
         else:
             print("[agent] disabled in config")
 
         interval = int(config.get("heartbeat_interval_seconds", DEFAULT_INTERVAL_SECONDS))
         print("[agent] loop tick")
-        print("[agent] config =", config)
         print("[agent] next heartbeat in", max(15, interval), "seconds")
         time.sleep(max(15, interval))
 
