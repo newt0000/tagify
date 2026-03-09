@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from PySide6.QtGui import QPageSize
 from typing import Optional
 
 from PySide6.QtCore import Qt, QSizeF, QRectF
@@ -72,7 +73,9 @@ def print_label_direct(
     printer.setFullPage(True)
 
     # Force 1x1 inch page size (25.4mm x 25.4mm)
-    printer.setPageSizeMM(QSizeF(MM_PER_INCH, MM_PER_INCH))
+
+
+    printer.setPageSize(QPageSize(QPageSize.SizeId.Custom, QSizeF(25.4, 25.4), QPageSize.Unit.Millimeter))
 
     # Higher DPI helps small label clarity (driver may override, but it's a good hint)
     printer.setResolution(300)

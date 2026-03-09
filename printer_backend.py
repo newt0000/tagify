@@ -3,7 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Windows-only (pywin32)
-import win32print
+import platform
+
+IS_WINDOWS = platform.system() == "Windows"
+
+if IS_WINDOWS:
+    import win32print
+    import win32api
+else:
+    win32print = None
 
 
 @dataclass
@@ -17,8 +25,14 @@ def list_printers() -> list[str]:
     """
     Returns local + network printers visible to Windows.
     """
-    flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
-    printers = [p[2] for p in win32print.EnumPrinters(flags)]
+
+    if IS_WINDOWS:
+        flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+        printers = win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL)
+    else:
+        printers = ["DEV: Zebra ZD420 (Emulated)",
+        "DEV: Thermal Label Printer",
+        "DEV: Test PDF Printer"]
 
     # de-dupe, preserve order
     seen = set()
