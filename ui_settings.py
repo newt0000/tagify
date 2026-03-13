@@ -273,9 +273,15 @@ class SettingsTab(QWidget):
         self.printer.addItem("(Default / Not set)", "")
 
         for p in list_printers():
-            self.printer.addItem(p, p)
+            if isinstance(p, tuple):
+                # supports formats like: ("Printer Name", "real_printer_name")
+                text = str(p[0])
+                data = p[1] if len(p) > 1 else p[0]
+                self.printer.addItem(text, data)
+            else:
+                self.printer.addItem(str(p), str(p))
 
-        # restore selection (current)
+        # restore selection
         if current:
             idx = self.printer.findData(current)
             if idx >= 0:

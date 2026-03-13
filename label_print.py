@@ -1,13 +1,10 @@
-# label_print.py
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from PySide6.QtGui import QPageSize
-from typing import Optional
 
 from PySide6.QtCore import Qt, QSizeF, QRectF
-from PySide6.QtGui import QFont, QPainter
+from PySide6.QtGui import QFont, QPainter, QPageSize
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 
 
@@ -43,13 +40,11 @@ def print_label_direct(
     copies: int = 1,
 ) -> DirectPrintResult:
     """
-    Prints a 1x1 inch label directly to the printer using Qt (no PDF temp file, no ShellExecute).
-    Note: If printer_name is 'Microsoft Print to PDF', Windows will still prompt to save.
+    Prints a 1x1 inch label directly to the printer using Qt.
     """
     if not printer_name:
         return DirectPrintResult(False, "No printer selected.")
 
-    # Print-to-PDF will always prompt user for a save path; that's driver behavior.
     if is_pdf_printer(printer_name):
         return DirectPrintResult(
             False,
@@ -57,27 +52,23 @@ def print_label_direct(
             "Windows will always prompt for a save location. Select a real printer to print silently."
         )
 
-    # Locate printer
     info = None
     for p in QPrinterInfo.availablePrinters():
         if p.printerName() == printer_name:
             info = p
             break
+
     if info is None:
         return DirectPrintResult(False, f"Printer not found: {printer_name}")
 
-    # Setup printer job
     printer = QPrinter(info)
     printer.setPrinterName(printer_name)
     printer.setCopyCount(max(1, int(copies)))
     printer.setFullPage(True)
 
-    # Force 1x1 inch page size (25.4mm x 25.4mm)
+    # 1x1 inch = 25.4mm x 25.4mm
+    printer.setPageSize(QPageSize(QSizeF(25.4, 25.4), QPageSize.Millimeter, "1x1 Label"))
 
-
-    printer.setPageSize(QPageSize(QPageSize.SizeId.Custom, QSizeF(25.4, 25.4), QPageSize.Unit.Millimeter))
-
-    # Higher DPI helps small label clarity (driver may override, but it's a good hint)
     printer.setResolution(300)
 
     painter = QPainter()
@@ -85,22 +76,18 @@ def print_label_direct(
         return DirectPrintResult(False, "Could not start print job (painter.begin failed).")
 
     try:
-        # Work in printer pixels
         page_rect = printer.pageRect(QPrinter.DevicePixel)
 
-        # Padding inside label
         pad = int(page_rect.width() * 0.07)
         x0 = page_rect.left() + pad
         y0 = page_rect.top() + pad
         w = page_rect.width() - 2 * pad
         h = page_rect.height() - 2 * pad
 
-        # Text
         name = (item_name or "").strip()
         prepped_s = prepped.strftime("%m/%d/%Y")
         expires_s = expires.strftime("%m/%d/%Y")
 
-        # Fonts (tune for 1x1)
         name_font = QFont("Segoe UI", 12)
         name_font.setBold(True)
 
@@ -108,12 +95,10 @@ def print_label_direct(
 
         painter.setRenderHint(QPainter.TextAntialiasing, True)
 
-        # Draw name at top
         painter.setFont(name_font)
         name_box = QRectF(x0, y0, w, h * 0.50)
         painter.drawText(name_box, Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop, name)
 
-        # Draw meta
         painter.setFont(meta_font)
         meta_y = y0 + int(h * 0.55)
         line_h = int(h * 0.18)

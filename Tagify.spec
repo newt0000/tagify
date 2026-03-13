@@ -43,9 +43,3 @@ coll = COLLECT(
     upx_exclude=[],
     name='Tagify',
 )
-app = BUNDLE(
-    coll,
-    name='Tagify.app',
-    icon='icon.ico',
-    bundle_identifier=None,
-)

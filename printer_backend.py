@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-# Windows-only (pywin32)
 import platform
 
 IS_WINDOWS = platform.system() == "Windows"
@@ -12,35 +10,58 @@ if IS_WINDOWS:
     import win32api
 else:
     win32print = None
+    win32api = None
 
 
 @dataclass
 class PrinterState:
-    ok: bool                 # True if we consider it connected/online
-    status_text: str         # Human-readable status
+    ok: bool
+    status_text: str
     printer_name: str | None
 
 
 def list_printers() -> list[str]:
     """
-    Returns local + network printers visible to Windows.
+    Returns printer names as plain strings.
+    On Windows, includes local and connected network printers.
+    On non-Windows, returns dev/test printer names.
     """
-
     if IS_WINDOWS:
-        flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
-        printers = win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL)
+        try:
+            flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+            raw_printers = win32print.EnumPrinters(flags)
+            printers = []
+
+            for p in raw_printers:
+                # Typical tuple format:
+                # (flags, description, name, comment)
+                if isinstance(p, tuple):
+                    if len(p) >= 3 and isinstance(p[2], str):
+                        printers.append(p[2])
+                    elif len(p) >= 2 and isinstance(p[1], str):
+                        printers.append(p[1])
+                    elif len(p) >= 1 and isinstance(p[0], str):
+                        printers.append(p[0])
+                elif isinstance(p, str):
+                    printers.append(p)
+
+        except Exception:
+            printers = []
     else:
-        printers = ["DEV: Zebra ZD420 (Emulated)",
-        "DEV: Thermal Label Printer",
-        "DEV: Test PDF Printer"]
+        printers = [
+            "DEV: Zebra ZD420 (Emulated)",
+            "DEV: Thermal Label Printer",
+            "DEV: Test PDF Printer",
+        ]
 
     # de-dupe, preserve order
     seen = set()
     out: list[str] = []
     for name in printers:
-        if name not in seen:
+        if name and name not in seen:
             seen.add(name)
             out.append(name)
+
     return out
 
 
@@ -51,12 +72,16 @@ def get_printer_state(printer_name: str | None) -> PrinterState:
     if not printer_name:
         return PrinterState(False, "No printer selected", None)
 
-    # ensure it exists in Windows list
+    if not IS_WINDOWS:
+        # Dev-mode behavior for macOS/Linux
+        if printer_name in list_printers():
+            return PrinterState(True, "Connected (emulated)", printer_name)
+        return PrinterState(False, "Not found", printer_name)
+
     try:
         if printer_name not in list_printers():
             return PrinterState(False, "Not found", printer_name)
     except Exception:
-        # If enumeration fails, still try open
         pass
 
     try:
@@ -79,7 +104,6 @@ def get_printer_state(printer_name: str | None) -> PrinterState:
             if status & ERROR:
                 return PrinterState(False, "Error", printer_name)
 
-            # Many drivers report 0 even when OK
             return PrinterState(True, "Connected", printer_name)
         finally:
             win32print.ClosePrinter(h)
